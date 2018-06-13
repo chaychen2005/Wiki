@@ -20,7 +20,7 @@ TransactionFilterChain合约在部署系统代理合约时，将首次被部署�
 
 对权限控制判断流程的进一步说明：
 
-2.1、TransactionFilterChain合约中可包含数个相互独立的Filter，每个Filter为具体的权限控制判断逻辑。用户只有通过整条TransactionFilterChain上所有Filter的权限判断，才能认为通过系统的权限控制判断，具备特定权限。每个Filter可由联盟链中不同成员负责管理，单独添加具体权限。
+2.1、TransactionFilterChain合约中可包含数个相互独立的Filter，每个Filter为具体的权限控制判断逻辑。用户只有通过整条TransactionFilterChain上所有Filter的权限判断，才能认为通过系统的权限控制判断，具备特定权限。每个Filter可由联盟链中不同成员负责管理，单独添加具体权限。但在目前的实践过程中，在多Filter情况下，为了让账号通过所有Filter的权限判断，需在各个Filter中，预先有相同的该账号到角色映射的设置，及该角色下包含相关合约接口的记录。
 
 2.2、对于每一个Filter，均有是否**启用权限控制**的状态区分，当处于启用权限控制状态时，才进行Filter的权限判断。Filter初始化为关闭权限控制。
 
@@ -38,14 +38,14 @@ TransactionFilterChain合约在部署系统代理合约时，将首次被部署�
 角色和权限总体来说是与场景强相关的，不同业务规则和系统构建，将有不同的角色和权限规划。FISCO BCOS根据以往经验，在此列出供参考的角色体系定义及角色对应的活动权限示例，作为权限控制的一个模型。
 
 - **链超级管理者（上帝账号）**：链超级管理者由联盟链管理委员会或公选出来的人员担任，具有所有权限，包括赋予权限的权限，可部署及执行所有合约。**其权限描述为**：给用户分配角色，给角色分配权限，含所有操作的权限。系统合约的执行需使用上帝账号执行。
-- **链/Filter管理者**：链/Filter管理者的级别仅次于链超级管理者，可作为各Filter的管理人员，负责审核、修改及删除链上的节点和账号相关资料，及合约信息。**其权限描述为**：执行CAAction、NodeAction、ContractABIAction、SystemProxy合约。
+- **链/Filter管理者**：链/Filter管理者的级别仅次于链超级管理者，可作为各Filter的管理人员，负责审核、修改及删除链上的节点和账号相关资料，及合约信息。**其权限描述为**：执行CAAction、NodeAction、ContractABIMgr、SystemProxy合约。
 - **运维管理人员**：运维管理人员是实施联盟链的非系统合约的部署和运维活动的人员，负责发布和管理应用，对节点物理资源及配置参数进行修改，不参与业务交易。**其权限描述为**：执行ConfigAction系统配置合约、部署非系统类合约（由于需从系统合约获取ConfigAction进行操作，因此也具有SystemProxy权限）。对于运维管理人员部署的非系统合约，如需使该合约全网生效（基于合约名访问而非合约地址访问合约），需链管理者通过操作ContractABIAction授权。
 - **交易人员A、B...**：交易操作人员是指使用平台进行商业交易操作的人员，交易人员发起业务的交易并查询交易执行结果，不同业务场景下的交易人员可再细分角色。**其权限描述为**：执行和查询业务合约（基于业务可再细分不同交易角色）。
 - **链监管人员（可以不单独作为Group）**：链监管人员负责制定权限规范，审查交易数据，一般不参与联盟链的管理，但可参加到日常交易业务中。**其权限描述为**：对操作记录的追溯（以Event方式记录部署合约和调用合约的输入要素作为审计事件）。
 
 ## 4、脚本使用说明
 
-4.1、systemcontract目录下ARPI_Model.js脚本提供一键启用FISCO BCOS权限控制模型ARPI的功能。脚本操作包括启用权限控制状态，并根据**3、FISCO BCOS在联盟链权限控制上的实践**中的内容设置角色和权限。**切记**：执行脚本后，系统将启用权限控制状态，如不需要，可使用上帝账号关闭该权限控制，否则将意外地影响其他账号对合约的部署及调用。
+4.1、systemcontract目录下ARPI_Model.js脚本提供一键启用FISCO BCOS权限控制模型ARPI的功能。脚本操作包括启用权限控制状态，并根据**3、FISCO BCOS在联盟链权限控制上的实践**中的内容设置角色和权限。**切记：执行脚本后，系统将启用权限控制状态，如不需要，可使用上帝账号关闭该权限控制，或直接执行babel-node AuthorityManager.js FilterChain resetFilter进行重置**，否则将意外地影响其他账号对合约的部署及调用。
 
 4.2、同时systemcontract目录下提供一个AuthorityManager.js脚本，用于对TransactionFilterChain进行管理，面向FilterChain、Filter和Group三个对象提供操作查询接口。**AuthorityManager.js和ARPI_Model.js脚本均需使用上帝账号执行。**
 
@@ -60,6 +60,8 @@ TransactionFilterChain合约在部署系统代理合约时，将首次被部署�
 4.2.3、Group在整个权限控制框架中属于三级位置，需提供Filter在整个FilterChain中的索引以及Group绑定的账号才能获取该Group对象。对于Group，提供了对权限列表的增删查、部署合约和黑名单的启停接口及一账号/角色的权限列表。具体接口说明如下，执行时均需提供Filter序号和账号：
 
 ![Group功能](./images/pic5.jpg) 
+
+**注意：**由于默认的uint在ABI中表示的其实是uint256，因此在添加/删除/检查合约constant接口的权限的过程中，脚本中**函数名（参数类型类表）**的参数，即使原有合约中函数参数的类型为uint，也需用uint256表示对应的参数类型。例子有ARPI_Model.js中对SystemProxy.sol合约的函数getRouteNameByIndex(uint index)添加权限。
 
 4.3、权限缺失的提示：
 
